@@ -1,0 +1,11 @@
+[
+	{
+	  "name": "grafana"
+	},
+	{
+	  "name": "nginx"
+	},
+	{
+	  "name": "ubuntu"
+	}
+      ]

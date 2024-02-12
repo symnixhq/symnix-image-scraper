@@ -1,0 +1,50 @@
+{
+    "linuxserver/bookstack": [
+        "version-v23.12.2",
+        "version-v23.12.1",
+        "version-v23.12",
+        "version-v23.10.4",
+        "version-v23.10.2",
+        "v23.12.2-ls129",
+        "v23.12.2-ls128",
+        "v23.12.2-ls127",
+        "v23.12.2-ls126",
+        "v23.12.1-ls125"
+    ],
+    "nginx": [
+        "stable-perl",
+        "stable-bullseye-perl",
+        "stable-bullseye",
+        "stable-alpine3.17-slim",
+        "stable-alpine3.17-perl",
+        "stable-alpine3.17",
+        "stable-alpine-slim",
+        "stable-alpine-perl",
+        "stable-alpine",
+        "stable"
+    ],
+    "postgres": [
+        "latest",
+        "bullseye",
+        "bookworm",
+        "alpine3.19",
+        "alpine3.18",
+        "alpine3.17",
+        "alpine",
+        "16.1-bullseye",
+        "16.1-bookworm",
+        "16.1-alpine3.19"
+    ],
+    "rocketchat/rocket.chat": [
+        "sha-f612d74-alpine",
+        "sha-f612d74",
+        "sha-f0475cc-alpine",
+        "sha-f0475cc",
+        "sha-ef68359-alpine",
+        "sha-ef68359",
+        "sha-ed45125-alpine",
+        "sha-ed45125",
+        "sha-ebc22c0",
+        "sha-de6997e-alpine"
+    ]
+}

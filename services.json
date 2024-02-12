@@ -1,11 +1,14 @@
 [
 	{
-	  "name": "grafana"
+	  "name": "linuxserver/bookstack"
 	},
 	{
 	  "name": "nginx"
 	},
 	{
-	  "name": "ubuntu"
+	  "name": "postgres"
+	},
+	{
+	  "name": "rocketchat/rocket.chat"
 	}
-      ]
+]

@@ -1,6 +1,6 @@
 """
 A script that takes a list from a file called 'services.json'
-and returns the latest 10 image tags that are human readable
+and returns the latest 5 image tags that are human readable
 in a sorted view (from newest to oldest image) in a file called 'all_tags.json'
 """
 
@@ -18,7 +18,7 @@ def get_docker_image_tags(image):
         image (str): The name of the Docker image.
 
     Returns:
-        list: List of the latest 10 unique version tags sorted in descending order.
+        list: List of the latest 5 unique version tags sorted in descending order with major version.
     """
     tags = []
 
@@ -39,16 +39,25 @@ def get_docker_image_tags(image):
     # Filter out tags that don't seem to follow a versioning scheme
     version_tags = [tag for tag in tags if re.match(r'v?\d+(\.\d+){0,2}', tag)]
 
-    # Extract version from each tag
-    versions = [re.match(r'v?(\d+(\.\d+){0,2})', tag).group(1) for tag in version_tags]
+    # Extract version and major version from each tag
+    versions = [{'version': re.match(r'v?(\d+(\.\d+){0,2})', tag).group(1), 'major': re.match(r'v?(\d+)', tag).group(1)} for tag in version_tags]
 
     # Get only unique versions, preserving order
-    unique_versions = list(dict.fromkeys(versions))
+    unique_versions = []
+    seen_versions = set()
+    last_major = None
+    for version in versions:
+        if version['version'] not in seen_versions:
+            seen_versions.add(version['version'])
+            if last_major != version['major']:
+                version['major'] = version['major']  # add 'major' key when it changes
+                last_major = version['major']
+            unique_versions.append(version)
 
     # Sort versions in descending order
-    unique_versions = sorted(unique_versions, key=lambda v: tuple(map(int, v.split('.'))), reverse=True)
+    unique_versions = sorted(unique_versions, key=lambda v: tuple(map(int, v['version'].split('.'))), reverse=True)
 
-    return unique_versions[:10]
+    return unique_versions[:5]
 
 
 def get_docker_image_tags_official_repo(image):
@@ -131,7 +140,11 @@ def main():
                 continue
 
             current_tags = all_tags.get(image, [])
-            newer_tags = [tag for tag in new_tags if tag not in current_tags]
+            if current_tags and isinstance(current_tags[0], str):
+                current_tags = [{'version': tag, 'major': tag.split('.')[0]} for tag in current_tags]
+
+            current_versions = [tag['version'] for tag in current_tags]
+            newer_tags = [tag for tag in new_tags if tag['version'] not in current_versions]
             if newer_tags:
                 updated_tags[image] = newer_tags + current_tags
 

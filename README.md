@@ -143,8 +143,8 @@ There are currently two attributes for each image in the `all_tags.json` output.
 
 ## 🗺️ Roadmap
 
-One of the most important features we are planning to implement is an API interface to use the output
-from the microservice in your application instead of the JSON file.
+One of the most important features we are planning to implement is an API interface to use the output from the script with other applications. The option to store the result in a
+.json file will remain in the future.
 
 We are also planning to variablize stuff like how many versions it stores for a docker image.
 

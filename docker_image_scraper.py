@@ -64,8 +64,6 @@ def _fetch_and_parse_tags(url):
         url = data.get("next")
     return tags
 
-
-# New Function 1: Fetch all container images from API
 def fetch_all_container_images():
     """
     Fetches all container images from the API.
@@ -77,8 +75,6 @@ def fetch_all_container_images():
     response.raise_for_status()
     return response.json()
 
-
-# New Function 2: Fetch image versions from API
 def fetch_image_versions(image_name):
     """
     Fetches all versions of a container image from the API.
@@ -93,8 +89,6 @@ def fetch_image_versions(image_name):
     response.raise_for_status()
     return response.json()
 
-
-# New Function 3: Post updated tags to API
 def send_to_api(updated_tags):
     """
     Sends updated tags to the API.
@@ -110,8 +104,6 @@ def send_to_api(updated_tags):
     response = requests.post(f"{API_URL}/container-images", json=payload, headers={"X-API-TOKEN": API_TOKEN})
     response.raise_for_status()
 
-
-# New Function 4: Delete a container image version from API
 def delete_container_image(image_id):
     """
     Deletes a container image by ID from the API.
@@ -122,8 +114,6 @@ def delete_container_image(image_id):
     response = requests.delete(f"{API_URL}/container-images/{image_id}", headers={"X-API-TOKEN": API_TOKEN})
     response.raise_for_status()
 
-
-# New Function 5: Compare and identify deletions
 def compare_and_identify_deletions(image_name, latest_tags, api_tags):
     """
     Compares the latest tags with the API tags to identify outdated versions.

@@ -1,14 +1,17 @@
 """
-A script that takes a list from a file called 'services.json'
-and returns the latest 5 image tags that are human readable
-in a sorted view (from newest to oldest image) in a file called 'all_tags.json'
+A script that fetches Docker image tags, updates a local JSON file, 
+and optionally syncs with an API, including deleting outdated tags.
 """
 
 import json
 import os
 import re
-import concurrent.futures
 import requests
+import concurrent.futures
+import argparse
+
+API_URL = "https://api.example.com"  # Replace with the actual API URL
+API_TOKEN = os.getenv("X_API_TOKEN")  # Token should be set as an environment variable
 
 def get_docker_image_tags(image):
     """
@@ -18,7 +21,7 @@ def get_docker_image_tags(image):
         image (str): The name of the Docker image.
 
     Returns:
-        list: List of the latest 5 unique version tags sorted in descending order with major version.
+        list: List of the latest 5 unique version tags sorted in descending order.
     """
     tags = []
 
@@ -26,98 +29,116 @@ def get_docker_image_tags(image):
         username, repo_name = image.split("/")
         tags.extend(get_docker_image_tags_specific_repo(username, repo_name))
     else:
-        if image.startswith("https://hub.docker.com/r/"):
-            image_parts = image.split("/")
-            repo_name = image_parts[-2]
-            image_name = image_parts[-1]
-            tags.extend(get_docker_image_tags_specific_repo(repo_name, image_name))
-        else:
-            tags.extend(get_docker_image_tags_official_repo(image))
+        tags.extend(get_docker_image_tags_official_repo(image))
 
-    tags = list(set(tags))
-
-    # Filter out tags that don't seem to follow a versioning scheme
     version_tags = [tag for tag in tags if re.match(r'v?\d+(\.\d+){0,2}', tag)]
-
-    # Extract version and major version from each tag
     versions = [{'version': re.match(r'v?(\d+(\.\d+){0,2})', tag).group(1), 'major': re.match(r'v?(\d+)', tag).group(1)} for tag in version_tags]
-
-    # Get only unique versions, preserving order
     unique_versions = []
     seen_versions = set()
-    last_major = None
-    for version in versions:
+
+    for version in sorted(versions, key=lambda v: tuple(map(int, v['version'].split('.'))), reverse=True):
         if version['version'] not in seen_versions:
             seen_versions.add(version['version'])
-            if last_major != version['major']:
-                version['major'] = version['major']  # add 'major' key when it changes
-                last_major = version['major']
             unique_versions.append(version)
 
-    # Sort versions in descending order
-    unique_versions = sorted(unique_versions, key=lambda v: tuple(map(int, v['version'].split('.'))), reverse=True)
-
-    return unique_versions[:5]
+    return unique_versions[:10]
 
 
 def get_docker_image_tags_official_repo(image):
-    """
-    Fetches tags for an image in the official Docker Hub repository.
-
-    Args:
-        image (str): The name of the Docker image.
-
-    Returns:
-        list: List of tags for the image.
-    """
     url = f"https://registry.hub.docker.com/v2/repositories/library/{image}/tags?page_size=1000"
     return _fetch_and_parse_tags(url)
 
 
 def get_docker_image_tags_specific_repo(username, repo_name):
-    """
-    Fetches tags for an image in a user's Docker Hub repository.
-
-    Args:
-        username (str): The username of the Docker Hub account.
-        repo_name (str): The name of the Docker repository.
-
-    Returns:
-        list: List of tags for the image.
-    """
     url = f"https://registry.hub.docker.com/v2/repositories/{username}/{repo_name}/tags?page_size=1000"
     return _fetch_and_parse_tags(url)
 
 
 def _fetch_and_parse_tags(url):
-    """
-    Fetches tags from a URL and parses the JSON response.
-
-    Args:
-        url (str): URL to fetch the tags from.
-
-    Returns:
-        list: List of tags fetched from the URL.
-    """
     tags = []
-    while url is not None:
+    while url:
         response = requests.get(url, timeout=300)
-        response.raise_for_status()  # Raise an exception for non-200 status codes
+        response.raise_for_status()
         data = response.json()
         tags.extend([result["name"] for result in data["results"]])
         url = data.get("next")
     return tags
 
-def main():
+def fetch_all_container_images():
     """
-    Main function to read services from a JSON file, fetch their latest tags,
-    and write the updated tags to a JSON file.
+    Fetches all container images from the API.
+
+    Returns:
+        list: A list of all images with their IDs and names.
+    """
+    response = requests.get(f"{API_URL}/container-images", headers={"X-API-TOKEN": API_TOKEN})
+    response.raise_for_status()
+    return response.json()
+
+def fetch_image_versions(image_name):
+    """
+    Fetches all versions of a container image from the API.
+
+    Args:
+        image_name (str): Name of the container image.
+
+    Returns:
+        list: A list of version strings for the specified image.
+    """
+    response = requests.get(f"{API_URL}/container-image-versions/{image_name}", headers={"X-API-TOKEN": API_TOKEN})
+    response.raise_for_status()
+    return response.json()
+
+def send_to_api(updated_tags):
+    """
+    Sends updated tags to the API.
+
+    Args:
+        updated_tags (dict): Dictionary of updated image tags to send to the API.
+    """
+    payload = {
+        "images": [
+            {"name": image, "versions": tags} for image, tags in updated_tags.items()
+        ]
+    }
+    response = requests.post(f"{API_URL}/container-images", json=payload, headers={"X-API-TOKEN": API_TOKEN})
+    response.raise_for_status()
+
+def delete_container_image(image_id):
+    """
+    Deletes a container image by ID from the API.
+
+    Args:
+        image_id (str): ID of the container image to delete.
+    """
+    response = requests.delete(f"{API_URL}/container-images/{image_id}", headers={"X-API-TOKEN": API_TOKEN})
+    response.raise_for_status()
+
+def compare_and_identify_deletions(image_name, latest_tags, api_tags):
+    """
+    Compares the latest tags with the API tags to identify outdated versions.
+
+    Args:
+        image_name (str): The name of the Docker image.
+        latest_tags (list): List of the latest tags fetched from Docker Hub.
+        api_tags (list): List of tags currently stored in the API.
+
+    Returns:
+        list: Tags from the API that are not in the latest tags (outdated tags).
+    """
+    latest_versions = [tag['version'] for tag in latest_tags]
+    outdated_versions = [tag for tag in api_tags if tag not in latest_versions]
+    return outdated_versions
+
+
+def main(enable_api=False):
+    """
+    Main function to manage Docker image tags and optionally sync with an API.
     """
     with open('services.json', 'r', encoding='utf-8') as f:
         services = json.load(f)
 
     updated_tags = {}
-
     if not os.path.exists('all_tags.json'):
         with open('all_tags.json', 'w', encoding='utf-8') as f:
             json.dump({}, f, indent=4)
@@ -125,12 +146,9 @@ def main():
     with open('all_tags.json', 'r', encoding='utf-8') as f:
         all_tags = json.load(f)
 
-    # Create a ThreadPoolExecutor
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        # Start fetching tags for each image in a separate thread
         futures = {executor.submit(get_docker_image_tags, service['name']): service['name'] for service in services}
 
-        # As each future completes, update the tags
         for future in concurrent.futures.as_completed(futures):
             image = futures[future]
             try:
@@ -140,9 +158,6 @@ def main():
                 continue
 
             current_tags = all_tags.get(image, [])
-            if current_tags and isinstance(current_tags[0], str):
-                current_tags = [{'version': tag, 'major': tag.split('.')[0]} for tag in current_tags]
-
             current_versions = [tag['version'] for tag in current_tags]
             newer_tags = [tag for tag in new_tags if tag['version'] not in current_versions]
             if newer_tags:
@@ -153,10 +168,24 @@ def main():
         with open('all_tags.json', 'w', encoding='utf-8') as f:
             json.dump(all_tags, f, indent=4)
 
-        print('Updated tags for', list(updated_tags.keys()), 'written to all_tags.json')
+        if enable_api and API_TOKEN:
+            send_to_api(updated_tags)
+
+            for image_name in updated_tags.keys():
+                api_tags = fetch_image_versions(image_name)
+                outdated_tags = compare_and_identify_deletions(image_name, updated_tags[image_name], api_tags)
+                for outdated_version in outdated_tags:
+                    print(f"Deleting outdated version '{outdated_version}' for image '{image_name}'")
+                    delete_container_image(outdated_version)
+
+        print('Updated tags written to all_tags.json')
     else:
         print('No newer tags found. all_tags.json remains unchanged.')
 
 
 if __name__ == "__main__":
-    main()
+    parser = argparse.ArgumentParser(description="Fetch Docker image tags and optionally sync with an API.")
+    parser.add_argument('--enable-api', action='store_true', help="Enable API integration.")
+    args = parser.parse_args()
+
+    main(enable_api=args.enable_api)
